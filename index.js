@@ -6,7 +6,6 @@ const url = require("url");
 const https = require("https");
 const rimraf = require('rimraf');
 const puppeteer = require('puppeteer');
-const ffmpeg = require('fluent-ffmpeg');
 
 const log = (...args) => console.log("→", ...args);
 
@@ -266,167 +265,16 @@ let overview;
 const download = function(url, dest, cb) {
     var file = fs.createWriteStream(dest);
     var request = https.get(url, function(response) {
-      response.pipe(file);
-      file.on('finish', function() {
-        file.close(cb);
-      });
-    }).on('error', function(err) {
-      fs.unlink(dest);
-      if (cb) cb(err.message);
-    });
-  };
-
-
-// the first version of the downloader fetched audio and video separately
-// from some vimeo link and merged the two parts with ffmpeg while the newer
-// version downloads the whole video directly from some json file from vimeo
-async function loadVideo(masterJsonUrl, path, name) {
-    let masterUrl = masterJsonUrl;
-    if (!masterUrl.endsWith("?base64_init=1")) {
-      masterUrl += "?base64_init=1";
-    }
-  
-    await new Promise((resolve, reject) => {
-        getJson(masterUrl, (err, json) => {
-            if (err) {
-                reject(err);
-            }
-        
-            const videoData = json.video
-              .sort((v1, v2) => v1.avg_bitrate - v2.avg_bitrate)
-              .pop();
-            const audioData = json.audio
-              .sort((a1, a2) => a1.avg_bitrate - a2.avg_bitrate)
-              .pop();
-        
-            const videoBaseUrl = url.resolve(
-              url.resolve(masterUrl, json.base_url),
-              videoData.base_url
-            );
-            const audioBaseUrl = url.resolve(
-              url.resolve(masterUrl, json.base_url),
-              audioData.base_url
-            );
-        
-            processFile(
-              path,
-              "video",
-              videoBaseUrl,
-              videoData.init_segment,
-              videoData.segments,
-              name + ".m4v",
-              err => {
-                if (err) {
-                    reject(err);
-                }
-        
-                processFile(
-                  path,
-                  "audio",
-                  audioBaseUrl,
-                  audioData.init_segment,
-                  audioData.segments,
-                  name + ".m4a",
-                  err => {
-                    if (err) {
-                        reject(err);
-                    }
-        
-                    ffmpeg()
-                      .addInput(`${path}/${name + ".m4v"}`)
-                      .addInput(`${path}/${name + ".m4a"}`)
-                      .output(`${path}/${name + ".mp4"}`)
-                      .audioCodec('copy')
-                      .videoCodec('copy')
-                      .on('end', function() {
-                        rimraf.sync(`${path}/${name + ".m4v"}`);
-                        rimraf.sync(`${path}/${name + ".m4a"}`);
-
-                        resolve();
-                      })
-                      .run();
-                  }
-                );
-              }
-            );
-          }); 
-    });
-  }
-  
-  function processFile(path, type, baseUrl, initData, segments, filename, cb) {
-    const filePath = `${path}/${filename}`;
-    const downloadingFlag = `${path}/.${filename}~`;
-    
-    if(fs.existsSync(downloadingFlag)) {
-      log("⚠️", ` ${filename} - ${type} is incomplete, restarting the download`);
-    } else if (fs.existsSync(filePath)) {
-      log("⚠️", ` ${filename} - ${type} already exists`);
-      return cb();
-    } else {
-      fs.writeFileSync(downloadingFlag, '');
-    }
-  
-    const segmentsUrl = segments.map(seg => baseUrl + seg.url);
-  
-    const initBuffer = Buffer.from(initData, "base64");
-    fs.writeFileSync(filePath, initBuffer);
-  
-    const output = fs.createWriteStream(filePath, {
-      flags: "a"
-    });
-  
-    combineSegments(type, 0, segmentsUrl, output, filePath, downloadingFlag, err => {
-      if (err) {
-        log("⚠️", ` ${err}`);
-      }
-  
-      output.end();
-      cb();
-    });
-  }
-  
-  function combineSegments(type, i, segmentsUrl, output, filename, downloadingFlag, cb) {
-    if (i >= segmentsUrl.length) {
-      fs.unlinkSync(downloadingFlag);
-      log("🏁", ` ${filename} - ${type} done`);
-      return cb();
-    }
-  
-    log(
-      "📦",
-      type === "video" ? "📹" : "🎧",
-      `Downloading ${type} segment ${i}/${segmentsUrl.length} of ${filename}`
-    );
-  
-    setTimeout(() => {
-        https
-        .get(segmentsUrl[i], res => {
-            res.on("data", d => output.write(d));
-    
-            res.on("end", () =>
-            combineSegments(type, i + 1, segmentsUrl, output, filename, downloadingFlag, cb)
-            );
-        })
-        .on("error", e => {
-            cb(e);
+        response.pipe(file);
+        file.on('finish', function() {
+            file.close(cb);
         });
-    }, getRandomInt(1000));
-  }
-  
-  function getJson(url, cb) {
-    let data = "";
-  
-    https
-      .get(url, res => {
-        res.on("data", d => (data += d));
-  
-        res.on("end", () => cb(null, JSON.parse(data)));
-      })
-      .on("error", e => {
-        cb(e);
-      });
-  }
+    }).on('error', function(err) {
+        fs.unlink(dest);
+        if (cb) cb(err.message);
+    });
+};
 
-  function getRandomInt(max) {
+function getRandomInt(max) {
     return Math.floor(Math.random() * Math.floor(max));
-  }
+}
