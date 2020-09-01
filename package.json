@@ -1,0 +1,17 @@
+{
+  "name": "medat-studymed-downloader",
+  "version": "1.0.0",
+  "description": "Downloads content from studymed, a learning platform for the entrance test to medat.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "author": "Leonhard Esterbauer",
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^8.2.0",
+    "fluent-ffmpeg": "^2.1.2",
+    "puppeteer": "^5.2.0",
+    "rimraf": "^3.0.2"
+  }
+}
